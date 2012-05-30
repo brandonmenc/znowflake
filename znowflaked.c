@@ -53,7 +53,7 @@ main (int argc, char **argv)
         int opt;
         int has_port_opt = 0;
         int has_machine_opt = 0;
-        char *port;
+        int port = DEFAULT_PORT;
         uint64_t machine;
         
         while ((opt = getopt (argc, argv, "hp:m:")) != -1) {
@@ -63,7 +63,7 @@ main (int argc, char **argv)
                         exit (EXIT_SUCCESS);
                 case 'p':
                         has_port_opt = 1;
-                        port = optarg;
+                        port = atoi (optarg);
                         break;
                 case 'm':
                         has_machine_opt = 1;
@@ -74,10 +74,7 @@ main (int argc, char **argv)
 
         //  Build the ZMQ endpoint
         char *zmq_endpoint = NULL;
-
-        if (!has_port_opt)
-                asprintf (&port, "%d", DEFAULT_PORT);
-        asprintf (&zmq_endpoint, "tcp://*:%s", port);
+        asprintf (&zmq_endpoint, "tcp://*:%d", port);
 
         //  Sanity check the machine number
         if (!has_machine_opt) {
