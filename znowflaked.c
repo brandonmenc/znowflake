@@ -132,7 +132,7 @@ main (int argc, char **argv)
                 ts = get_ts ();
 
                 //  Make sure the system clock wasn't reversed on us
-                if (ts <= last_ts) {
+                if (ts < last_ts) {
                         //  Wait until it catches up
                         while (ts <= last_ts) {
                                 nanosleep (&ms, NULL);
