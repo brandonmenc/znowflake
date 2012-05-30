@@ -19,6 +19,13 @@
 #define DEFAULT_PORT 23138
 #define EPOCH 1337000000ULL
 
+static void
+print_help (void)
+{
+        printf ("Example: `znowflaked -p 5555 -m 1234` ");
+        printf ("starts daemon for machine 1234 listening on port 5555\n\n");
+}
+
 static inline uint64_t
 get_ts (void)
 {
@@ -49,8 +56,11 @@ main (int argc, char **argv)
         char *port;
         uint64_t machine;
         
-        while ((opt = getopt (argc, argv, "p:m:")) != -1) {
+        while ((opt = getopt (argc, argv, "hp:m:")) != -1) {
                 switch (opt) {
+                case 'h':
+                        print_help ();
+                        exit (EXIT_SUCCESS);
                 case 'p':
                         has_port_opt = 1;
                         port = optarg;
@@ -107,7 +117,7 @@ main (int argc, char **argv)
 
         //  Sleep for 1ms to prevent collisions
         struct timespec ms;
-        ms.tv_sec = 1;
+        ms.tv_sec = 0;
         ms.tv_nsec = 1000000;
         nanosleep (&ms, NULL);
 
