@@ -131,7 +131,16 @@ main (int argc, char **argv)
                 last_ts = ts;
                 ts = get_ts ();
 
-                //  Increment sequence
+                //  Make sure the system clock wasn't reversed on us
+                if (ts <= last_ts) {
+                        //  Wait until it catches up
+                        while (ts <= last_ts) {
+                                nanosleep (&ms, NULL);
+                                ts = get_ts ();
+                        }
+                }
+
+                //  Increment the sequence number
                 if (ts != last_ts) {
                         //  We're in a new time click, so reset the sequence
                         seq = 0;

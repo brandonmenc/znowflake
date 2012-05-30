@@ -1,0 +1,34 @@
+# Znowflake
+
+Znowflake is a network service for generating unique ID numbers. It's similar
+to Twitter's [Snowflake](http://github.com/twitter/snowflake). Znowflake is
+implemented in C using [ZeroMQ](http://www.zeromq.org).
+
+## Details
+
+Please read the documents for Snowflake.
+
+Our motivation and requirements are similar. Performance and resolution
+requirements are less strict. Some differences:
+
+* Wider machine ID field
+* Epoch at 1337000000 (May 14, 2012)
+* Quits generating unique IDs sooner (around 17 years)
+
+## Usage
+
+### Server
+
+Znowflake is a linux daemon. It might compile on other systems - give it a
+shot.
+
+It takes two options: port number and machine number. If the port isn't given,
+it defaults to 23138.
+
+    znowflaked -p 5555 -m 7384
+
+This gets a `ZMQ_REP` socket listening on port 5555.
+
+### Client
+
+Look at `testclient.c` for how to get an ID from the server.

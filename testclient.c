@@ -95,6 +95,7 @@ main (int argc, char **argv)
 
         int request_nbr;
         for (request_nbr = 0; request_nbr != 100; request_nbr++) {
+                //  Send an arbitrary one-byte message to the server
                 zmq_msg_t request;
                 zmq_msg_init_size (&request, 1);
                 memcpy (zmq_msg_data (&request), "x", 1);
