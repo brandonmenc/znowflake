@@ -18,7 +18,7 @@
 #define SEQ_MASK (1ULL << SEQ_BITLEN) - 1
 
 #define DEFAULT_PORT 23138
-#define BASETIME 1337000000ULL
+#define EPOCH 1337000000ULL
 
 static uint64_t
 id_recv (void *socket)
@@ -45,7 +45,7 @@ void
 print_id (uint64_t id)
 {
         //  Break it down
-        uint64_t ts = (BASETIME * 1000) + (id >> TIME_BITSHIFT);
+        uint64_t ts = (EPOCH * 1000) + (id >> TIME_BITSHIFT);
         uint64_t sec = ts / 1000;
         uint64_t msec = ts - (sec * 1000);
         uint64_t machine = (id >> MACHINE_BITSHIFT) & MACHINE_MASK;

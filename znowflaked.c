@@ -17,14 +17,14 @@
 #define SEQ_MAX (1ULL << SEQ_BITLEN) - 1
 
 #define DEFAULT_PORT 23138
-#define BASETIME 1337000000ULL
+#define EPOCH 1337000000ULL
 
 static inline uint64_t
 get_ts (void)
 {
         struct timeval t;
         gettimeofday (&t, NULL);
-        return (((t.tv_sec - BASETIME) * 1000) + (t.tv_usec / 1000));
+        return (((t.tv_sec - EPOCH) * 1000) + (t.tv_usec / 1000));
 }
 
 static inline uint64_t
