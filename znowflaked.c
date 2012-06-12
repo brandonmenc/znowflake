@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
+#include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <unistd.h>
@@ -19,6 +21,24 @@
 #define DEFAULT_PORT 23138
 #define EPOCH 1337000000ULL
 
+// Signal handling
+static int s_interrupted = 0;
+static void s_signal_handler (int signal_value)
+{
+    s_interrupted = 1;
+}
+
+static void s_catch_signals (void)
+{
+    struct sigaction action;
+    action.sa_handler = s_signal_handler;
+    action.sa_flags = 0;
+    sigemptyset (&action.sa_mask);
+    sigaction (SIGINT, &action, NULL);
+    sigaction (SIGTERM, &action, NULL);
+}
+
+// Help
 static void
 print_help (void)
 {
@@ -26,6 +46,7 @@ print_help (void)
         printf ("starts daemon for machine 1234 listening on port 5555\n\n");
 }
 
+// Building IDs
 static inline uint64_t
 get_ts (void)
 {
@@ -40,14 +61,12 @@ build_id (uint64_t ts, uint64_t machine, uint64_t seq)
         return (ts << TIME_BITSHIFT) | (machine << MACHINE_BITSHIFT) | seq;
 }
 
+// Main
 int
 main (int argc, char **argv)
 {
         //  Do some initial sanity checking
-        if (TIME_BITLEN + MACHINE_BITLEN + SEQ_BITLEN != 64) {
-                printf ("Major Error: the specified ID length does not equal 64 bits. Recompile!\n");
-                exit (EXIT_FAILURE);
-        }
+        assert (TIME_BITLEN + MACHINE_BITLEN + SEQ_BITLEN == 64);
 
         //  Parse command-line arguments
         int opt;
@@ -126,7 +145,8 @@ main (int argc, char **argv)
         uint64_t ts = 0;
         uint64_t last_ts = 0;
         uint64_t seq = 0;
-        
+
+        s_catch_signals ();        
         while (1) {
                 //  Wait for the next request
                 zmq_msg_t request;
@@ -172,6 +192,14 @@ main (int argc, char **argv)
                 memcpy (zmq_msg_data (&reply), &id_be64, 8);
                 zmq_send (socket, &reply, 0);
                 zmq_msg_close (&reply);
+
+                // Exit program
+                if (s_interrupted) {
+                        printf ("W: interrupt received, killing server…\n");
+                        break;
+                }
         }
+        zmq_close (socket);
+        zmq_term (context);
         exit (EXIT_SUCCESS);
 }
