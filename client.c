@@ -54,8 +54,12 @@ print_id (uint64_t id)
         //  Print it out
         time_t time = (time_t) sec;
         char *timestr = ctime (&time);
-        printf ("%s", timestr);
-        printf ("%llu, %llu, %llu\n", msec, machine, seq);
+
+        printf ("id:          %llu\n", id);
+        printf ("machine:     %llu\n", machine);
+        printf ("datetime:    %s", timestr);
+        printf ("timestamp:   %llu\n", sec);
+        printf ("(msec, seq): (%llu, %llu)\n\n", msec, seq);
 }
 
 int
