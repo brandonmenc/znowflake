@@ -1,27 +1,25 @@
 # Znowflake
 
-Znowflake is a network service for generating unique ID numbers. It's similar
+Znowflake is a network service for generating unique 64-bit ID numbers. It's similar
 to Twitter's [Snowflake](http://github.com/twitter/snowflake). Znowflake is
 implemented in C using [ZeroMQ](http://www.zeromq.org).
 
 ## Details
 
-Please read the documents for Snowflake.
+Please read the documents for Snowflake. Our motivation and requirements are similar.
 
-Our motivation and requirements are similar. Performance and resolution
-requirements are less strict than Twitter's, however.
-
-Other differences:
+There are some differences:
 
 * Wider machine ID field
 * Epoch at 1337000000 (May 14, 2012)
-* Quits generating unique IDs sooner (around 17 years from now)
+* Quits generating unique IDs sooner (good for around 17 years)
+* Relaxed performance and resolution requirements
 
 ## Usage
 
 ### Server
 
-Znowflake is a linux daemon. It might compile on other systems - give it a
+Znowflake is a Linux daemon. It might compile on other systems - give it a
 shot.
 
 It takes two options: port number and machine number. If the port isn't given,
@@ -34,27 +32,35 @@ This gets a `ZMQ_REP` socket listening on port 5555.
 #### Configuration File
 
 `znowflaked` also reads a simple [libconfig](http://www.hyperrealm.com/libconfig)-based
-configuration file. Specify the path to this file with the `-f` option:
+configuration file:
 
     znowflaked -f /etc/znowflaked/znowflaked.conf
 
-A sample configuration featuring all available options:
+Sample configuration file contents:
 
     machine: 2849;
     port: 4242;
 
 ### Startup Script
 
-An init script for CentOS is found in the `znowflaked` file. Copy it to `/etc/init.d`,
-create a configuration file at `/etc/znowflake/znowflake.conf`, and run:
+An init script for CentOS is found in the `znowflaked.sh` file. Get the whole thing running:
 
+    cp znowflaked /etc/init.d
+    vi /etc/znowflake/znowflake.conf
+    gcc znowflaked.c -lconfig -lzmq -o /usr/local/bin/znowflaked
     service znowflaked start
 
-Automatically start on reboot with:
+Start on boot:
 
     chkconfig --add znowflaked
     chkconfig znowflaked on
 
-### Client
+### Example Clients
 
-Look at `testclient.c` for how to get an ID from the server.
+`client.c` and `client.rb` show you how to get IDs from the server.
+
+`cclient.c` is a continuously running client, useful for testing.
+
+    cclient -p 1234 -r 1000
+
+grabs IDs from port 1234 at a rate of 1000 per second. Try running multiple instances of `cclient`.
