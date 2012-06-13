@@ -31,4 +31,4 @@ This gets a `ZMQ_REP` socket listening on port 5555.
 
 ### Client
 
-Look at `testclient.c` for how to get an ID from the server.
+Look at `client.c` or `client.rb` for how to get an ID from the server.
