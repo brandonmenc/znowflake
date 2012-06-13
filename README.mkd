@@ -15,7 +15,7 @@ Other differences:
 
 * Wider machine ID field
 * Epoch at 1337000000 (May 14, 2012)
-* Quits generating unique IDs sooner (around 17 years from now)
+* Quits generating unique IDs sooner (good for around 17 years)
 
 ## Usage
 
@@ -56,6 +56,6 @@ Start on boot:
     chkconfig --add znowflaked
     chkconfig znowflaked on
 
-### Client
+### Example Clients
 
-Look at `client.c` or `client.rb` for how to get an ID from the server.
+`client.c` and `client.rb` show you how to get IDs from the server.
