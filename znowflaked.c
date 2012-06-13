@@ -7,6 +7,7 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <zmq.h>
+#include <libconfig.h>
 
 #define TIME_BITLEN 39
 #define MACHINE_BITLEN 15
@@ -23,12 +24,15 @@
 
 // Signal handling
 static int s_interrupted = 0;
-static void s_signal_handler (int signal_value)
+
+static void
+s_signal_handler (int signal_value)
 {
     s_interrupted = 1;
 }
 
-static void s_catch_signals (void)
+static void
+s_catch_signals (void)
 {
     struct sigaction action;
     action.sa_handler = s_signal_handler;
@@ -72,10 +76,14 @@ main (int argc, char **argv)
         int opt;
         int has_port_opt = 0;
         int has_machine_opt = 0;
+        int has_config_file_opt = 0;
+        int machine_specified = 0;
+
+        const char *config_file_path;
         int port = DEFAULT_PORT;
         uint64_t machine;
         
-        while ((opt = getopt (argc, argv, "hp:m:")) != -1) {
+        while ((opt = getopt (argc, argv, "hp:m:f:")) != -1) {
                 switch (opt) {
                 case 'h':
                         print_help ();
@@ -87,8 +95,36 @@ main (int argc, char **argv)
                 case 'm':
                         has_machine_opt = 1;
                         machine = atoll (optarg);
+                        machine_specified = 1;
+                        break;
+                case 'f':
+                        has_config_file_opt = 1;
+                        config_file_path = optarg;
                         break;
                 }
+        }
+
+        // Read the config file
+        if (has_config_file_opt) {
+                config_t cfg;
+
+                config_init (&cfg);
+
+                if (!config_read_file (&cfg, config_file_path)) {
+                        config_destroy (&cfg);
+                        fprintf (stderr, "Invalid config file\n");
+                        exit (EXIT_FAILURE);
+                }
+
+                long unsigned int machine_from_file;
+                if (config_lookup_int (&cfg, "machine", &machine_from_file) && !has_machine_opt) {
+                        machine_specified = 1;
+                        machine = (uint64_t) machine_from_file;
+                }
+
+                long unsigned int port_from_file;
+                if (config_lookup_int (&cfg, "port", &port_from_file) && !has_port_opt)
+                        port = (int) port_from_file;
         }
 
         //  Build the ZMQ endpoint
@@ -96,12 +132,12 @@ main (int argc, char **argv)
         asprintf (&zmq_endpoint, "tcp://*:%d", port);
 
         //  Sanity check the machine number
-        if (!has_machine_opt) {
-                printf ("Error: no machine number specified. Use the -m command-line option.\n");
+        if (!machine_specified) {
+                fprintf (stderr, "No machine number specified.\n");
                 exit (EXIT_FAILURE);
         }
         else if (machine > MACHINE_MAX) {
-                printf ("Error: machine number too large. Cannot be greater than %llu\n", MACHINE_MAX);
+                fprintf (stderr, "Machine number too large. Cannot be greater than %llu\n", MACHINE_MAX);
                 exit (EXIT_FAILURE);
         }
 
@@ -195,7 +231,7 @@ main (int argc, char **argv)
 
                 // Exit program
                 if (s_interrupted) {
-                        printf ("W: interrupt received, killing server…\n");
+                        printf ("interrupt received, killing server…\n");
                         break;
                 }
         }
