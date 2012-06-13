@@ -6,9 +6,9 @@ implemented in C using [ZeroMQ](http://www.zeromq.org).
 
 ## Details
 
-Please read the documents for Snowflake.
+Please read the documents for Snowflake. Our motivation and requirements are similar.
 
-Our motivation and requirements are similar. Differences:
+There are some differences:
 
 * Wider machine ID field
 * Epoch at 1337000000 (May 14, 2012)
