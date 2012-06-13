@@ -1,6 +1,6 @@
 # Znowflake
 
-Znowflake is a network service for generating unique ID numbers. It's similar
+Znowflake is a network service for generating unique 64-bit ID numbers. It's similar
 to Twitter's [Snowflake](http://github.com/twitter/snowflake). Znowflake is
 implemented in C using [ZeroMQ](http://www.zeromq.org).
 
@@ -8,14 +8,12 @@ implemented in C using [ZeroMQ](http://www.zeromq.org).
 
 Please read the documents for Snowflake.
 
-Our motivation and requirements are similar, but performance and resolution
-requirements are less strict.
-
-Other differences:
+Our motivation and requirements are similar. Differences:
 
 * Wider machine ID field
 * Epoch at 1337000000 (May 14, 2012)
 * Quits generating unique IDs sooner (good for around 17 years)
+* Relaxed performance and resolution requirements
 
 ## Usage
 
