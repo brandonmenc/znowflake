@@ -9,11 +9,13 @@ implemented in C using [ZeroMQ](http://www.zeromq.org).
 Please read the documents for Snowflake.
 
 Our motivation and requirements are similar. Performance and resolution
-requirements are less strict. Other differences:
+requirements are less strict than Twitter's, however.
+
+Other differences:
 
 * Wider machine ID field
 * Epoch at 1337000000 (May 14, 2012)
-* Quits generating unique IDs sooner (around 17 years)
+* Quits generating unique IDs sooner (around 17 years from now)
 
 ## Usage
 
@@ -28,6 +30,30 @@ it defaults to 23138.
     znowflaked -p 5555 -m 7384
 
 This gets a `ZMQ_REP` socket listening on port 5555.
+
+#### Configuration File
+
+`znowflaked` also reads a simple [libconfig](http://www.hyperrealm.com/libconfig)-based
+configuration file. Specify the path to this file with the `-f` option:
+
+    znowflaked -f /etc/znowflaked/znowflaked.conf
+
+A sample configuration featuring all available options:
+
+    machine: 2849;
+    port: 4242;
+
+### Startup Script
+
+An init script for CentOS is found in the `znowflaked` file. Copy it to `/etc/init.d`,
+create a configuration file at `/etc/znowflake/znowflake.conf`, and run:
+
+    service znowflaked start
+
+Automatically start on reboot with:
+
+    chkconfig --add znowflaked
+    chkconfig znowflaked on
 
 ### Client
 
