@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 #include <inttypes.h>
 #include <unistd.h>
 #include <time.h>
@@ -66,10 +67,7 @@ int
 main (int argc, char **argv)
 {
         //  Do some initial sanity checking
-        if (TIME_BITLEN + MACHINE_BITLEN + SEQ_BITLEN != 64) {
-                printf ("Major Error: the specified ID length does not equal 64 bits. Recompile!\n");
-                exit (EXIT_FAILURE);
-        }
+        assert (TIME_BITLEN + MACHINE_BITLEN + SEQ_BITLEN == 64);
 
         //  Parse command-line arguments
         int opt;
