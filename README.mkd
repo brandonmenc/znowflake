@@ -8,8 +8,8 @@ implemented in C using [ZeroMQ](http://www.zeromq.org).
 
 Please read the documents for Snowflake.
 
-Our motivation and requirements are similar. Performance and resolution
-requirements are less strict than Twitter's, however.
+Our motivation and requirements are similar, but performance and resolution
+requirements are less strict.
 
 Other differences:
 
@@ -21,7 +21,7 @@ Other differences:
 
 ### Server
 
-Znowflake is a linux daemon. It might compile on other systems - give it a
+Znowflake is a Linux daemon. It might compile on other systems - give it a
 shot.
 
 It takes two options: port number and machine number. If the port isn't given,
@@ -34,23 +34,24 @@ This gets a `ZMQ_REP` socket listening on port 5555.
 #### Configuration File
 
 `znowflaked` also reads a simple [libconfig](http://www.hyperrealm.com/libconfig)-based
-configuration file. Specify the path to this file with the `-f` option:
+configuration file:
 
     znowflaked -f /etc/znowflaked/znowflaked.conf
 
-A sample configuration featuring all available options:
+Sample configuration file contents:
 
     machine: 2849;
     port: 4242;
 
 ### Startup Script
 
-An init script for CentOS is found in the `znowflaked` file. Copy it to `/etc/init.d`,
-create a configuration file at `/etc/znowflake/znowflake.conf`, and run:
+An init script for CentOS is found in the `znowflaked` file:
 
+    cp znowflaked /etc/init.d
+    vi /etc/znowflake/znowflake.conf
     service znowflaked start
 
-Automatically start on reboot with:
+Start on boot:
 
     chkconfig --add znowflaked
     chkconfig znowflaked on
