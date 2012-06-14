@@ -58,3 +58,9 @@ Start on boot:
 ### Example Clients
 
 `client.c` and `client.rb` show you how to get IDs from the server.
+
+`cclient.c` is a continuously running client, useful for testing.
+
+    cclient -p 1234 -r 1000
+
+grabs IDs from port 1234 at a rate of 1000 per second. Try running multiple instances of `cclient`.
