@@ -1,0 +1,162 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <errno.h>
+#include <assert.h>
+#include <inttypes.h>
+#include <unistd.h>
+#include <time.h>
+#include <zmq.h>
+
+#define DEFAULT_RATE 4
+
+#define TIME_BITLEN 39
+#define MACHINE_BITLEN 15
+#define SEQ_BITLEN 10
+
+#define MACHINE_BITSHIFT SEQ_BITLEN
+#define TIME_BITSHIFT SEQ_BITLEN + MACHINE_BITLEN
+
+#define MACHINE_MASK (1ULL << MACHINE_BITLEN) - 1
+#define SEQ_MASK (1ULL << SEQ_BITLEN) - 1
+
+#define DEFAULT_PORT 23138
+#define EPOCH 1337000000ULL
+
+// Signal handling
+static int s_interrupted = 0;
+
+static void
+s_signal_handler (int signal_value)
+{
+    s_interrupted = 1;
+}
+
+static void
+s_catch_signals (void)
+{
+    struct sigaction action;
+    action.sa_handler = s_signal_handler;
+    action.sa_flags = 0;
+    sigemptyset (&action.sa_mask);
+    sigaction (SIGINT, &action, NULL);
+    sigaction (SIGTERM, &action, NULL);
+}
+
+// Millisecond sleep
+void
+minisleep (int ms)
+{
+        struct timespec duration;
+        int secs = (int) (ms / 1000);
+        duration.tv_sec = 1 * secs;
+        duration.tv_nsec = 1000000 * (ms - secs * 1000);
+        nanosleep (&duration, NULL);
+}
+
+// Receiving messages
+static uint64_t
+id_recv (void *socket)
+{
+        zmq_msg_t message;
+        zmq_msg_init (&message);
+        if (zmq_recv (socket, &message, 0)) {
+                printf ("Fatal: error receiving zmq message.\n");
+                exit (EXIT_FAILURE);
+        }
+        int size = zmq_msg_size (&message);
+        if (size != 8) {
+                printf ("Fatal: ID payload was not 64 bits.\n");
+                exit (EXIT_FAILURE);
+        }
+        uint64_t id;
+        memcpy (&id, zmq_msg_data (&message), 8);
+        zmq_msg_close (&message);
+        //  Convert from network byte order
+        return (be64toh (id));
+}
+
+// Printing IDs
+void
+print_id (uint64_t id)
+{
+        //  Break it down
+        uint64_t ts = (EPOCH * 1000) + (id >> TIME_BITSHIFT);
+        uint64_t sec = ts / 1000;
+        uint64_t msec = ts - (sec * 1000);
+        uint64_t machine = (id >> MACHINE_BITSHIFT) & MACHINE_MASK;
+        uint64_t seq = id & SEQ_MASK;
+
+        //  Print it out
+        time_t time = (time_t) sec;
+        char *timestr = ctime (&time);
+
+        printf ("id:          %llu\n", id);
+        printf ("machine:     %llu\n", machine);
+        printf ("datetime:    %s", timestr);
+        printf ("timestamp:   %llu\n", sec);
+        printf ("(msec, seq): (%llu, %llu)\n\n", msec, seq);
+}
+
+// Main
+int
+main (int argc, char **argv)
+{
+        //  Do some initial sanity checking
+        assert (TIME_BITLEN + MACHINE_BITLEN + SEQ_BITLEN == 64);
+
+        //  Parse command-line arguments
+        int opt;
+        int has_port_opt = 0;
+        char *port;
+        int rate = DEFAULT_RATE;
+        
+        while ((opt = getopt (argc, argv, "p:r:")) != -1) {
+                switch (opt) {
+                case 'p':
+                        has_port_opt = 1;
+                        port = optarg;
+                        break;
+                case 'r':
+                        rate = atoi (optarg);
+                        break;
+                }
+        }
+
+        //  Build the ZMQ endpoint
+        char *zmq_endpoint = NULL;
+
+        if (!has_port_opt)
+                asprintf (&port, "%d", DEFAULT_PORT);
+        asprintf (&zmq_endpoint, "tcp://*:%s", port);
+
+        //  Main loop
+        void *context = zmq_init (1);
+        void *socket = zmq_socket (context, ZMQ_REQ);
+        zmq_connect (socket, zmq_endpoint);
+
+        while (1) {
+                //  Send a zero-length message to the server
+                zmq_msg_t request;
+                zmq_msg_init_size (&request, 0);
+                memcpy (zmq_msg_data (&request), "", 0);
+                zmq_send (socket, &request, 0);
+                zmq_msg_close (&request);
+
+                uint64_t id = id_recv (socket);
+                print_id (id);
+
+                // Sleep
+                minisleep (1000 / rate);
+                
+                // Exit program
+                if (s_interrupted) {
+                        printf ("interrupt received, killing client…\n");
+                        break;
+                }
+        }
+        zmq_close (socket);
+        zmq_term (context);
+        exit (EXIT_SUCCESS);
+}
