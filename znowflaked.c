@@ -5,9 +5,11 @@
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <fcntl.h>
 #include <unistd.h>
-#include <zmq.h>
 #include <libconfig.h>
+
+#include "czmq.h"
 
 #define TIME_BITLEN 39
 #define MACHINE_BITLEN 15
@@ -22,35 +24,35 @@
 #define DEFAULT_PORT 23138
 #define EPOCH 1337000000ULL
 
-// Signal handling
+//  Signal handling
 static int s_interrupted = 0;
 
 static void
 s_signal_handler (int signal_value)
 {
-    s_interrupted = 1;
+        s_interrupted = 1;
 }
 
 static void
 s_catch_signals (void)
 {
-    struct sigaction action;
-    action.sa_handler = s_signal_handler;
-    action.sa_flags = 0;
-    sigemptyset (&action.sa_mask);
-    sigaction (SIGINT, &action, NULL);
-    sigaction (SIGTERM, &action, NULL);
+        struct sigaction action;
+        action.sa_handler = s_signal_handler;
+        action.sa_flags = 0;
+        sigemptyset (&action.sa_mask);
+        sigaction (SIGINT, &action, NULL);
+        sigaction (SIGTERM, &action, NULL);
 }
 
-// Help
+//  Help
 static void
 print_help (void)
 {
-        printf ("Example: `znowflaked -p 5555 -m 1234` ");
+        printf ("Example: `znowflaked -d -p 5555 -m 1234` ");
         printf ("starts daemon for machine 1234 listening on port 5555\n\n");
 }
 
-// Building IDs
+//  Building IDs
 static inline uint64_t
 get_ts (void)
 {
@@ -65,7 +67,7 @@ build_id (uint64_t ts, uint64_t machine, uint64_t seq)
         return (ts << TIME_BITSHIFT) | (machine << MACHINE_BITSHIFT) | seq;
 }
 
-// Main
+//  Main
 int
 main (int argc, char **argv)
 {
@@ -77,13 +79,14 @@ main (int argc, char **argv)
         int has_port_opt = 0;
         int has_machine_opt = 0;
         int has_config_file_opt = 0;
+        int has_daemonize_opt = 0;
         int machine_specified = 0;
 
         const char *config_file_path;
         int port = DEFAULT_PORT;
         uint64_t machine;
         
-        while ((opt = getopt (argc, argv, "hp:m:f:")) != -1) {
+        while ((opt = getopt (argc, argv, "hp:m:f:d")) != -1) {
                 switch (opt) {
                 case 'h':
                         print_help ();
@@ -101,10 +104,13 @@ main (int argc, char **argv)
                         has_config_file_opt = 1;
                         config_file_path = optarg;
                         break;
+                case 'd':
+                        has_daemonize_opt = 1;
+                        break;
                 }
         }
 
-        // Read the config file
+        //  Read the config file
         if (has_config_file_opt) {
                 config_t cfg;
 
@@ -125,11 +131,9 @@ main (int argc, char **argv)
                 long unsigned int port_from_file;
                 if (config_lookup_int (&cfg, "port", &port_from_file) && !has_port_opt)
                         port = (int) port_from_file;
-        }
 
-        //  Build the ZMQ endpoint
-        char *zmq_endpoint = NULL;
-        asprintf (&zmq_endpoint, "tcp://*:%d", port);
+                
+        }
 
         //  Sanity check the machine number
         if (!machine_specified) {
@@ -142,30 +146,59 @@ main (int argc, char **argv)
         }
 
         //  Daemonize
-        pid_t pid, sid;
+        static char *pid_file_path = "/var/run/znowflaked.pid";
+        int pid_file;
+        
+        if (has_daemonize_opt) {
+                pid_t pid, sid;
 
-        pid = fork ();
-        if (pid < 0) {
-                exit (EXIT_FAILURE);
-        }	
-        if (pid > 0) {
-                exit (EXIT_SUCCESS);
-        }
+                pid = fork ();
+                if (pid < 0) {
+                        exit (EXIT_FAILURE);
+                }
+                if (pid > 0) {
+                        exit (EXIT_SUCCESS);
+                }
 
-        umask (0);
+                umask (0);
                 
-        sid = setsid ();
-        if (sid < 0) {
-                exit (EXIT_FAILURE);
-        }
+                sid = setsid ();
+                if (sid < 0) {
+                        exit (EXIT_FAILURE);
+                }
         
-        if ((chdir ("/")) < 0) {
-                exit (EXIT_FAILURE);
-        }
+                if ((chdir ("/")) < 0) {
+                        exit (EXIT_FAILURE);
+                }
+
+                //  Create and lock the pid file
+                pid_file = open (pid_file_path, O_CREAT | O_RDWR, 0666);
+                if (pid_file > 0) {
+                        int rc = lockf (pid_file, F_TLOCK, 0);
+                        if (rc) {
+                                switch (errno) {
+                                case EACCES:
+                                case EAGAIN:
+                                        fprintf (stderr, "PID file already locked\n");
+                                        break;
+                                case EBADF:
+                                        fprintf (stderr, "Bad pid file\n");
+                                        break;
+                                default:
+                                        fprintf (stderr, "Could not lock pid file\n");
+                                }
+                                exit (EXIT_FAILURE);
+                        }
+
+                        char *pid_string = NULL;
+                        int pid_string_len = asprintf (&pid_string, "%ld", (long) getpid ());
+                        write (pid_file, pid_string, pid_string_len);
+                }
         
-        close (STDIN_FILENO);
-        close (STDOUT_FILENO);
-        close (STDERR_FILENO);
+                close (STDIN_FILENO);
+                close (STDOUT_FILENO);
+                close (STDERR_FILENO);
+        }
 
         //  Sleep for 1ms to prevent collisions
         struct timespec ms;
@@ -173,22 +206,32 @@ main (int argc, char **argv)
         ms.tv_nsec = 1000000;
         nanosleep (&ms, NULL);
 
-        //  Main loop
-        void *context = zmq_init (1);
-        void *socket = zmq_socket (context, ZMQ_REP);
-        zmq_bind (socket, zmq_endpoint);
+        //  Initialize ZeroMQ
+        zctx_t *context = zctx_new ();
+        assert (context);
+        void *socket = zsocket_new (context, ZMQ_REP);
+        assert (socket);
+        assert (streq (zsocket_type_str (socket), "REP"));
+        int rc = zsocket_bind (socket, "tcp://*:%d", port);
+        if (rc != port) {
+                printf ("E: bind failed: %s\n", strerror (errno));
+                exit (EXIT_FAILURE);
+        }
 
+        //  Start remembering the last timer tick
         uint64_t ts = 0;
         uint64_t last_ts = 0;
         uint64_t seq = 0;
 
+        //  Main loop
         s_catch_signals ();        
         while (1) {
                 //  Wait for the next request
-                zmq_msg_t request;
-                zmq_msg_init (&request);
-                zmq_recv (socket, &request, 0);
-                zmq_msg_close (&request);
+                zmsg_t *request_msg = zmsg_new ();
+                assert (request_msg);
+                request_msg = zmsg_recv (socket);
+                assert (request_msg);
+                zmsg_destroy (&request_msg);
 
                 //  Grab a time click
                 last_ts = ts;
@@ -223,19 +266,28 @@ main (int argc, char **argv)
                 uint64_t id_be64 = htobe64 (id);
 
                 //  Reply
-                zmq_msg_t reply;
-                zmq_msg_init_size (&reply, 8);
-                memcpy (zmq_msg_data (&reply), &id_be64, 8);
-                zmq_send (socket, &reply, 0);
-                zmq_msg_close (&reply);
+                zmsg_t *reply_msg = zmsg_new ();
+                assert (reply_msg);
+                zframe_t *frame = zframe_new (&id_be64, 8);
+                assert (frame);
+                zmsg_push (reply_msg, frame);
+                assert (zmsg_size (reply_msg) == 1);
+                assert (zmsg_content_size (reply_msg) == 8);
+                zmsg_send (&reply_msg, socket);
+                assert (reply_msg == NULL);
 
-                // Exit program
+                //  Exit program
                 if (s_interrupted) {
                         printf ("interrupt received, killing server…\n");
                         break;
                 }
         }
-        zmq_close (socket);
-        zmq_term (context);
+        zctx_destroy (&context);
+        if (has_daemonize_opt) {
+                if (pid_file > 0) {
+                        unlink (pid_file_path);
+                        close (pid_file);
+                }
+        }
         exit (EXIT_SUCCESS);
 }

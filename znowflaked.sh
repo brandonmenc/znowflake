@@ -21,7 +21,7 @@ lockfile=/var/lock/subsys/znowflaked
 start() {
     [ -x $znowflaked ] || exit 5
     echo -n $"Starting $prog: "
-    daemon $znowflaked -f $ZNOWFLAKE_CONF_FILE
+    daemon $znowflaked -d -f $ZNOWFLAKE_CONF_FILE
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile
@@ -69,7 +69,7 @@ case "$1" in
         ;;
     condrestart|try-restart)
         rh_status_q || exit 0
-            ;;
+        ;;
     *)
         echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart}"
         exit 2

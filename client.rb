@@ -73,13 +73,13 @@ end
 
 context = ZMQ::Context.new
 socket  = context.socket ZMQ::REQ
-socket.connect "tcp://*:#{@port}"
+socket.connect "tcp://127.0.0.1:#{@port}"
 
 100.times do
   socket.send_string ''
 
   message = ZMQ::Message.new
-  successful_read = socket.recv message
+  successful_read = socket.recvmsg message
   message = ZnowflakeMessage.new message if successful_read
 
   print_id message.id
