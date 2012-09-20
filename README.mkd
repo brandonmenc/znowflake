@@ -2,7 +2,7 @@
 
 Znowflake is a network service for generating unique 64-bit ID numbers. It's similar
 to Twitter's [Snowflake](http://github.com/twitter/snowflake). Znowflake is
-implemented in C using [ZeroMQ](http://www.zeromq.org).
+implemented in C with [ZeroMQ](http://www.zeromq.org) via [CZMQ](http://czmq.zeromq.org).
 
 ## Details
 
@@ -22,8 +22,8 @@ There are some differences:
 Znowflake is a Linux daemon. It might compile on other systems - give it a
 shot.
 
-It takes two options: port number and machine number. If the port isn't given,
-it defaults to 23138.
+It accepts options for port number, machine number, and an option to daemonize.
+If the port isn't given, it defaults to 23138.
 
     znowflaked -p 5555 -m 7384
 
@@ -41,11 +41,15 @@ Sample configuration file contents:
     machine: 2849;
     port: 4242;
 
+To daemonize, pass in the `-d` flag:
+
+    znowflaked -d -m 100
+
 ### Startup Script
 
 An init script for CentOS is found in the `znowflaked.sh` file. Get the whole thing running:
 
-    gcc znowflaked.c -lconfig -lzmq -o /usr/local/bin/znowflaked
+    gcc znowflaked.c -lconfig -lczmq -lzmq -o /usr/local/bin/znowflaked
     cp znowflaked.sh /etc/init.d/znowflaked
     vi /etc/znowflake/znowflake.conf
     service znowflaked start

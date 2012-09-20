@@ -7,7 +7,8 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <time.h>
-#include <zmq.h>
+
+#include "czmq.h"
 
 #define DEFAULT_RATE 4
 
@@ -30,18 +31,18 @@ static int s_interrupted = 0;
 static void
 s_signal_handler (int signal_value)
 {
-    s_interrupted = 1;
+        s_interrupted = 1;
 }
 
 static void
 s_catch_signals (void)
 {
-    struct sigaction action;
-    action.sa_handler = s_signal_handler;
-    action.sa_flags = 0;
-    sigemptyset (&action.sa_mask);
-    sigaction (SIGINT, &action, NULL);
-    sigaction (SIGTERM, &action, NULL);
+        struct sigaction action;
+        action.sa_handler = s_signal_handler;
+        action.sa_flags = 0;
+        sigemptyset (&action.sa_mask);
+        sigaction (SIGINT, &action, NULL);
+        sigaction (SIGTERM, &action, NULL);
 }
 
 // Millisecond sleep
@@ -59,21 +60,20 @@ minisleep (int ms)
 static uint64_t
 id_recv (void *socket)
 {
-        zmq_msg_t message;
-        zmq_msg_init (&message);
-        if (zmq_recv (socket, &message, 0)) {
-                printf ("Fatal: error receiving zmq message.\n");
-                exit (EXIT_FAILURE);
-        }
-        int size = zmq_msg_size (&message);
-        if (size != 8) {
-                printf ("Fatal: ID payload was not 64 bits.\n");
-                exit (EXIT_FAILURE);
-        }
+        //  Read message
+        zmsg_t *msg = zmsg_recv (socket);
+        assert (msg);
+        assert (zmsg_size (msg) == 1);
+        assert (zmsg_content_size (msg) == 8);
+        zframe_t *frame = zmsg_first (msg);
+        assert (frame);
+        assert (zframe_size (frame) == 8);
+
         uint64_t id;
-        memcpy (&id, zmq_msg_data (&message), 8);
-        zmq_msg_close (&message);
-        //  Convert from network byte order
+        memcpy (&id, zframe_data (frame), 8);
+        zmsg_destroy (&msg);
+        zframe_destroy (&frame);
+
         return (be64toh (id));
 }
 
@@ -108,15 +108,13 @@ main (int argc, char **argv)
 
         //  Parse command-line arguments
         int opt;
-        int has_port_opt = 0;
-        char *port;
+        int port = DEFAULT_PORT;
         int rate = DEFAULT_RATE;
         
         while ((opt = getopt (argc, argv, "p:r:")) != -1) {
                 switch (opt) {
                 case 'p':
-                        has_port_opt = 1;
-                        port = optarg;
+                        port = atoi (optarg);
                         break;
                 case 'r':
                         rate = atoi (optarg);
@@ -124,26 +122,30 @@ main (int argc, char **argv)
                 }
         }
 
-        //  Build the ZMQ endpoint
-        char *zmq_endpoint = NULL;
-
-        if (!has_port_opt)
-                asprintf (&port, "%d", DEFAULT_PORT);
-        asprintf (&zmq_endpoint, "tcp://*:%s", port);
+        //  Initialize ZeroMQ
+        zctx_t *context = zctx_new ();
+        assert (context);
+        void *socket = zsocket_new (context, ZMQ_REQ);
+        assert (socket);
+        assert (streq (zsocket_type_str (socket), "REQ"));
+        int rc = zsocket_connect (socket, "tcp://127.0.0.1:%d", port);
+        if (rc != 0) {
+                printf ("E: bind failed: %s\n", strerror (errno));
+                exit (EXIT_FAILURE);
+        }
 
         //  Main loop
-        void *context = zmq_init (1);
-        void *socket = zmq_socket (context, ZMQ_REQ);
-        zmq_connect (socket, zmq_endpoint);
-
+        s_catch_signals ();
         while (1) {
                 //  Send a zero-length message to the server
-                zmq_msg_t request;
-                zmq_msg_init_size (&request, 0);
-                memcpy (zmq_msg_data (&request), "", 0);
-                zmq_send (socket, &request, 0);
-                zmq_msg_close (&request);
+                zmsg_t *msg = zmsg_new ();
+                assert (msg);
+                rc = zmsg_addmem (msg, "", 0);
+                assert (rc == 0);
+                zmsg_send (&msg, socket);
+                assert (msg == NULL);
 
+                //  Get the response
                 uint64_t id = id_recv (socket);
                 print_id (id);
 
@@ -152,7 +154,7 @@ main (int argc, char **argv)
                 
                 // Exit program
                 if (s_interrupted) {
-                        printf ("interrupt received, killing client…\n");
+                        printf ("\ninterrupt received, killing client…\n");
                         break;
                 }
         }
